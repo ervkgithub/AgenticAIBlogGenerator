@@ -1,7 +1,7 @@
 
 const OLLAMA_BASE_URL =
   process.env.OLLAMA_BASE_URL?.trim() || "http://localhost:11434";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL?.trim() || "llama3";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL?.trim() || "qwen2.5:0.5b";
 
 async function ollama(prompt: string) {
   const res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
@@ -77,13 +77,10 @@ export async function POST() {
       'Return only JSON with keys "topic" and "hook" for a single strong LinkedIn blog topic for senior frontend developers. No prose, no markdown, no code fences.'
     );
 
-    const blog = await ollama(
-      `Write a LinkedIn article for senior frontend engineers. Topic: ${parsed.topic}. Hook: ${parsed.hook}`
-    );
-
-    const imagePrompt = await ollama(
-      `Create a LinkedIn blog cover image prompt for topic: ${parsed.topic}. 16:9, no text.`
-    );
+    const [blog, imagePrompt] = await Promise.all([
+      ollama(`Write a LinkedIn article for senior frontend engineers. Topic: ${parsed.topic}. Hook: ${parsed.hook}`),
+      ollama(`Create a LinkedIn blog cover image prompt for topic: ${parsed.topic}. 16:9, no text.`),
+    ]);
 
     return Response.json({
       topic: parsed.topic,
