@@ -6,6 +6,9 @@ type GenerateRequest = {
   tone?: string;
   wordCount?: number;
   cta?: string;
+  goal?: string;
+  proofPoints?: string;
+  systemExample?: string;
 };
 
 /** n8n sometimes wraps items as [{ json: {...} }]; webhooks may nest under body. */
