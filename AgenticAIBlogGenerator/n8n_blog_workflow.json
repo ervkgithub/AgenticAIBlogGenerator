@@ -1,0 +1,204 @@
+{
+  "name": "Agentic AI Blog Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agentic-ai-blog-generate",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": {}
+      },
+      "id": "Webhook_Trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1280,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let body = $json.body ?? $json;\nif (typeof body === 'string') {\n  try {\n    body = JSON.parse(body);\n  } catch {\n    throw new Error('Invalid JSON in webhook body');\n  }\n}\n\nconst topic = body.topic?.toString().trim();\nif (!topic) {\n  throw new Error('Missing required field: topic');\n}\n\nconst audience = body.audience?.toString().trim() || 'Software engineers and product builders';\nconst tone = body.tone?.toString().trim() || 'Practical, insightful, and actionable';\nconst wordCount = Number(body.wordCount ?? 1400);\nconst cta = body.cta?.toString().trim() || 'Try building one workflow this week and measure results.';\n\nreturn [{\n  json: {\n    topic,\n    audience,\n    tone,\n    wordCount: Number.isFinite(wordCount) ? Math.max(700, Math.min(3000, wordCount)) : 1400,\n    cta,\n    requestedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "Normalize_Input",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1040,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const topic = $json.topic;\nconst audience = $json.audience;\nconst tone = $json.tone;\nconst wordCount = Number($json.wordCount ?? 1400);\n\nconst searchQueries = [\n  `${topic}`,\n  `${topic} tutorial`,\n  `${topic} examples`,\n  `${topic} best practices`,\n  `${topic} implementation guide`\n];\n\nconst outline = [\n  {\n    section: 'Introduction',\n    bullets: [\n      `Explain why ${topic} matters now`,\n      `Frame the problem for ${audience}`\n    ]\n  },\n  {\n    section: 'Core Concepts',\n    bullets: [\n      `Define the main building blocks behind ${topic}`,\n      'Clarify terminology and trade-offs',\n      'Show where teams usually get stuck'\n    ]\n  },\n  {\n    section: 'Implementation Walkthrough',\n    bullets: [\n      'Break the workflow into concrete steps',\n      'Include architecture, tooling, and handoff points',\n      'Call out validation and failure handling'\n    ]\n  },\n  {\n    section: 'Practical Example',\n    bullets: [\n      `Give a realistic example centered on ${topic}`,\n      'Show inputs, outputs, and expected behavior'\n    ]\n  },\n  {\n    section: 'Best Practices',\n    bullets: [\n      'Cover observability, retries, and guardrails',\n      'Mention cost, performance, and maintainability'\n    ]\n  },\n  {\n    section: 'Conclusion',\n    bullets: [\n      'Summarize the key implementation lessons',\n      'End with a practical next step'\n    ]\n  }\n];\n\nconst angle = `${tone} guide for ${audience} with a strong implementation focus and a target length of about ${wordCount} words.`;\n\nreturn [{\n  json: {\n    search_queries: searchQueries,\n    angle,\n    outline,\n    sources_note: 'Planner generated locally in n8n to reduce Gemini free-tier quota usage.'\n  }\n}];"
+      },
+      "id": "Planner_LLM",
+      "name": "Planner LLM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let plan;\n\nif (Array.isArray($json.search_queries) && Array.isArray($json.outline)) {\n  plan = $json;\n} else {\n  const raw = ($json.candidates?.[0]?.content?.parts ?? []).map((p) => p?.text ?? '').join('') || '{}';\n  try {\n    plan = JSON.parse(raw);\n  } catch {\n    plan = {\n      search_queries: [],\n      angle: 'Practical breakdown with real implementation notes',\n      outline: [\n        { section: 'Introduction', bullets: ['Context and problem statement'] },\n        { section: 'Core Workflow', bullets: ['Step-by-step implementation details'] },\n        { section: 'Conclusion', bullets: ['Actionable next steps'] }\n      ],\n      sources_note: 'No external sources parsed from planner output.'\n    };\n  }\n}\n\nreturn [{ json: { ...$item(0).$node['Normalize Input'].json, plan } }];"
+      },
+      "id": "Parse_Plan",
+      "name": "Parse Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const topic = $json.topic;\nconst audience = $json.audience;\nconst tone = $json.tone;\nconst cta = $json.cta;\nconst plan = $json.plan ?? {};\nconst outline = Array.isArray(plan.outline) ? plan.outline : [];\nconst queries = Array.isArray(plan.search_queries) ? plan.search_queries : [];\n\nconst title = `# ${topic}`;\nconst intro = [\n  `${topic} is becoming a practical way for teams to build repeatable automation with better decision-making, context handling, and execution quality.`,\n  `This guide is written for ${audience} and takes a ${tone.toLowerCase()} approach so you can move from concept to implementation without losing sight of reliability.`\n].join(' ');\n\nconst sectionMarkdown = outline.map((item, index) => {\n  const sectionTitle = item?.section ? String(item.section) : `Section ${index + 1}`;\n  const bullets = Array.isArray(item?.bullets) ? item.bullets : [];\n  const explanation = bullets.length\n    ? bullets.map((bullet) => `- ${String(bullet)}`).join('\\n')\n    : '- Add practical implementation notes here.';\n\n  return [\n    `## ${sectionTitle}`,\n    `In this part of the workflow, focus on the concrete implementation details that help a team move from planning to execution around ${topic}.`,\n    explanation\n  ].join('\\n\\n');\n}).join('\\n\\n');\n\nconst exampleSection = [\n  '## Example Workflow',\n  `A simple production-ready starting point is to accept a topic, normalize the request, create a plan, draft the article, derive metadata, and return a structured payload to the frontend.`,\n  '- Validate the incoming payload early.',\n  '- Keep generation steps observable and deterministic where possible.',\n  '- Return both markdown content and structured metadata to the UI.'\n].join('\\n\\n');\n\nconst faqSection = [\n  '## FAQ',\n  '### How should teams start?',\n  'Start with a narrow workflow, measure output quality, and improve one step at a time.',\n  '### What usually breaks first?',\n  'Quota limits, brittle prompts, and missing validation are the first issues most teams encounter.',\n  '### How do you make it reliable?',\n  'Use strong input normalization, explicit output structures, retries only where appropriate, and clear fallbacks.'\n].join('\\n\\n');\n\nconst nextSteps = [\n  '## Next Steps',\n  `${cta}`,\n  queries.length ? `Suggested related search angles: ${queries.join(', ')}.` : ''\n].filter(Boolean).join('\\n\\n');\n\nconst draftMarkdown = [\n  title,\n  intro,\n  sectionMarkdown,\n  exampleSection,\n  faqSection,\n  nextSteps\n].filter(Boolean).join('\\n\\n');\n\nreturn [{ json: { ...$json, draftMarkdown } }];"
+      },
+      "id": "Writer_LLM",
+      "name": "Writer LLM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const draftMarkdown = typeof $json.draftMarkdown === 'string'\n  ? $json.draftMarkdown\n  : ($json.candidates?.[0]?.content?.parts ?? []).map((p) => p?.text ?? '').join('');\nif (!draftMarkdown.trim()) {\n  throw new Error('Writer step returned empty content');\n}\n\nreturn [{\n  json: {\n    ...$item(0).$node['Parse Plan'].json,\n    draftMarkdown\n  }\n}];"
+      },
+      "id": "Collect_Draft",
+      "name": "Collect Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $item(0).$node['Collect Draft'].json;\nconst topic = source.topic ?? 'Untitled';\nconst draftMarkdown = source.draftMarkdown ?? '';\n\nconst lines = draftMarkdown\n  .split('\\n')\n  .map((line) => line.trim())\n  .filter(Boolean);\n\nconst firstHeading = lines.find((line) => line.startsWith('# '));\nconst title = (firstHeading ? firstHeading.replace(/^#\\s+/, '') : topic).trim();\nconst plainText = draftMarkdown\n  .replace(/^#+\\s+/gm, '')\n  .replace(/```[\\s\\S]*?```/g, ' ')\n  .replace(/`([^`]+)`/g, '$1')\n  .replace(/[\\*_>#-]/g, ' ')\n  .replace(/\\[(.*?)\\]\\((.*?)\\)/g, '$1')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nconst excerpt = plainText.slice(0, 180).trim() || `Deep dive on ${topic}`;\nconst metaDescription = plainText.slice(0, 155).trim() || `Technical guide about ${topic}`;\nconst slug = title\n  .toLowerCase()\n  .replace(/[^a-z0-9\\s-]/g, '')\n  .trim()\n  .replace(/\\s+/g, '-')\n  .replace(/-+/g, '-');\n\nconst keywords = Array.from(new Set([\n  topic,\n  ...(Array.isArray(source.plan?.search_queries) ? source.plan.search_queries.slice(0, 4) : []),\n  'agentic ai',\n  'workflow automation'\n].map((item) => String(item).trim()).filter(Boolean)));\n\nreturn [{\n  json: {\n    title,\n    slug,\n    excerpt,\n    metaDescription,\n    keywords\n  }\n}];"
+      },
+      "id": "SEO_LLM",
+      "name": "SEO LLM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let seo;\n\nif ($json.title || $json.slug || $json.metaDescription) {\n  seo = $json;\n} else {\n  const seoRaw = ($json.candidates?.[0]?.content?.parts ?? []).map((p) => p?.text ?? '').join('') || '{}';\n  try {\n    seo = JSON.parse(seoRaw);\n  } catch {\n    seo = {};\n  }\n}\n\nconst source = $item(0).$node['Collect Draft'].json;\nconst finalTitle = seo.title || source.topic;\nconst finalSlug = (seo.slug || source.topic)\n  .toLowerCase()\n  .replace(/[^a-z0-9\\s-]/g, '')\n  .trim()\n  .replace(/\\s+/g, '-')\n  .replace(/-+/g, '-');\n\nreturn [{\n  json: {\n    success: true,\n    generatedAt: new Date().toISOString(),\n    title: finalTitle,\n    slug: finalSlug,\n    excerpt: seo.excerpt || `Deep dive on ${source.topic}`,\n    metaDescription: seo.metaDescription || `Technical guide about ${source.topic}`,\n    keywords: Array.isArray(seo.keywords) ? seo.keywords : [source.topic, 'agentic ai', 'workflow automation'],\n    contentMarkdown: source.draftMarkdown,\n    plan: source.plan,\n    input: {\n      topic: source.topic,\n      audience: source.audience,\n      tone: source.tone,\n      wordCount: source.wordCount,\n      cta: source.cta\n    }\n  }\n}];"
+      },
+      "id": "Build_Response",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Planner LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Planner LLM": {
+      "main": [
+        [
+          {
+            "node": "Parse Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Plan": {
+      "main": [
+        [
+          {
+            "node": "Writer LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Writer LLM": {
+      "main": [
+        [
+          {
+            "node": "Collect Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Draft": {
+      "main": [
+        [
+          {
+            "node": "SEO LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO LLM": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "2f094ac0-f0c7-46d4-bec5-d017f38717fe",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "active": false
+}
