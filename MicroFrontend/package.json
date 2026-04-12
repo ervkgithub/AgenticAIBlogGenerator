@@ -1,0 +1,20 @@
+{
+  "name": "microfrontend-platform",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n shell,marketing,catalog,account,checkout -c blue,green,yellow,magenta,cyan \"npm run dev --workspace @micro/shell\" \"npm run dev --workspace @micro/marketing\" \"npm run dev --workspace @micro/catalog\" \"npm run dev --workspace @micro/account\" \"npm run dev --workspace @micro/checkout\"",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.6.3"
+  }
+}
+
