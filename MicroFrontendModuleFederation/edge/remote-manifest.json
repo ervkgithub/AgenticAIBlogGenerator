@@ -1,0 +1,22 @@
+{
+  "remotes": [
+    {
+      "name": "marketing",
+      "appUrl": "http://localhost:4001",
+      "remoteEntry": "http://localhost:4001/remoteEntry.js",
+      "ssrUrl": "http://localhost:4001/ssr"
+    },
+    {
+      "name": "catalog",
+      "appUrl": "http://localhost:4002",
+      "remoteEntry": "http://localhost:4002/remoteEntry.js",
+      "ssrUrl": "http://localhost:4002/ssr"
+    },
+    {
+      "name": "checkout",
+      "appUrl": "http://localhost:4003",
+      "remoteEntry": "http://localhost:4003/remoteEntry.js",
+      "ssrUrl": "http://localhost:4003/ssr"
+    }
+  ]
+}

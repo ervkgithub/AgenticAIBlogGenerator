@@ -1,0 +1,20 @@
+name: CI - Checkout Remote
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build --workspace @mf/checkout
+      - run: npm run test --workspace @mf/checkout
+      - run: docker build -t mf-checkout ./apps/checkout

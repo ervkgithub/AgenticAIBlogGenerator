@@ -1,0 +1,20 @@
+{
+  "name": "microfrontend-module-federation",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n host,marketing,catalog,checkout -c blue,green,yellow,magenta \"npm run dev --workspace @mf/host\" \"npm run dev --workspace @mf/marketing\" \"npm run dev --workspace @mf/catalog\" \"npm run dev --workspace @mf/checkout\"",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "docker:compose": "docker compose up --build",
+    "lint": "echo \"No lints configured\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "dotenv": "^16.3.1"
+  }
+}

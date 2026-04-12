@@ -1,0 +1,46 @@
+version: '3.9'
+services:
+  host:
+    build:
+      context: ./apps/host
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - REMOTE_MANIFEST_URL=http://host:4000/remote-manifest.json
+    depends_on:
+      - marketing
+      - catalog
+      - checkout
+
+  marketing:
+    build:
+      context: ./apps/marketing
+      dockerfile: Dockerfile
+    ports:
+      - "4001:4001"
+    environment:
+      - NODE_ENV=production
+      - PORT=4001
+
+  catalog:
+    build:
+      context: ./apps/catalog
+      dockerfile: Dockerfile
+    ports:
+      - "4002:4002"
+    environment:
+      - NODE_ENV=production
+      - PORT=4002
+
+  checkout:
+    build:
+      context: ./apps/checkout
+      dockerfile: Dockerfile
+    ports:
+      - "4003:4003"
+    environment:
+      - NODE_ENV=production
+      - PORT=4003
