@@ -1,4 +1,4 @@
-# PulseOps Real-Time SPA Dashboard
+# PulseOps Real-Time SPA Dashboard Demo
 
 This project is a real-time single-page dashboard built with `Next.js`, `React`, `styled-components`, `Socket.IO`, and `Jest`.
 
