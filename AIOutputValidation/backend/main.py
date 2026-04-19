@@ -35,23 +35,32 @@ def read_root():
 
 @app.post("/analyze/file")
 async def analyze_file(
-    file: UploadFile = File(...),
+    files: list[UploadFile] = File(...),
     strict: Optional[bool] = Form(False)
 ):
     temp_dir = "temp_uploads"
     os.makedirs(temp_dir, exist_ok=True)
-    temp_path = os.path.join(temp_dir, file.filename)
-
+    
+    all_content = []
+    
     try:
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        code_input = extract_file_content(temp_path)
-        result = analyze_code_with_ollama(code_input, model="llama3", strict=bool(strict))
+        for file in files:
+            temp_path = os.path.join(temp_dir, file.filename)
+            with open(temp_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            
+            content = extract_file_content(temp_path)
+            if content:
+                all_content.append(f"--- FILE: {file.filename} ---\n{content}\n")
+            
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        
+        combined_input = "\n".join(all_content)
+        result = analyze_code_with_ollama(combined_input, model="llama3", strict=bool(strict))
         return result
-    finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/analyze/repo")
 async def analyze_repo(req: RepoScanRequest):

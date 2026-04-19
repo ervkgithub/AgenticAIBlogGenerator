@@ -3,145 +3,90 @@ import json
 import re
 
 # ──────────────────────────────────────────────────────────────
-#  NORMAL MODE  –  thorough but balanced review
-# ──────────────────────────────────────────────────────────────
-SYSTEM_PROMPT_NORMAL = """
-You are a Senior Staff Engineer and Code Reviewer with 15+ years in React, Next.js, TypeScript, GraphQL and modern web architecture.
-Deeply analyze the provided code and return a structured JSON report.
-
-========================
-CRITICAL ANALYSIS REQUIREMENTS (MUST FOLLOW)
-========================
-- Identify framework-specific issues: React hooks misuse, Next.js SSR/CSR mistakes, missing Suspense boundaries
-- Flag ALL anti-patterns: index as key, inline handlers, missing keys, prop drilling, mutating state directly
-- Detect missing states: loading, error, empty state
-- Detect crash-prone code: unsafe property access without optional chaining, uncaught promises
-- Flag accessibility gaps: missing alt text, missing aria-labels, form inputs without labels, focus management
-- DO NOT give generic advice like "use HTTPS" unless HTTPS is actually NOT being used
-- Assign concrete severity: Critical, High, Medium, Low — do NOT default everything to Low
-- Do NOT mark any code as production-ready unless it truly meets real-world professional standards
-- Output only the exact JSON below. No markdown, no prose, no code blocks around the JSON.
-
-========================
-SCORING GUIDE
-========================
-- "Poor": major bugs/crashes possible, no error handling, missing core states
-- "Average": works but multiple medium-to-high issues present
-- "Good": mostly correct, 1-3 minor issues
-- "Excellent": FAANG production-ready, fully accessible, performant, tested
-
-========================
-OUTPUT FORMAT — RETURN ONLY THIS JSON
-========================
-{
-  "overall_score": "Poor | Average | Good | Excellent",
-  "score_breakdown": {
-    "ui_ux": "X/10 – <one sentence>",
-    "accessibility": "X/10 – <one sentence>",
-    "seo": "X/10 – <one sentence>",
-    "security": "X/10 – <one sentence>",
-    "performance": "X/10 – <one sentence>",
-    "production_ready": "X/10 – <one sentence>",
-    "reliability": "X/10 – <one sentence>",
-    "scalability": "X/10 – <one sentence>",
-    "reusability": "X/10 – <one sentence>",
-    "maintainability": "X/10 – <one sentence>"
-  },
-  "issues": [
-    {
-      "category": "e.g. React Anti-Pattern | Accessibility | Performance | Security | Error Handling",
-      "severity": "Critical | High | Medium | Low",
-      "description": "Specific, concrete description — reference the actual code",
-      "impact": "Exact real-world consequence of this issue",
-      "code_reference": "function/line/file name if identifiable",
-      "fix": "Exact corrected code snippet demonstrating the fix"
-    }
-  ],
-  "improvement_plan": [
-    "1. [Critical] Fix all unhandled async errors with try/catch",
-    "2. [High] Replace index keys with stable IDs",
-    "3. [High] Add loading and error UI states",
-    "4. [Medium] Memoize expensive derived data with useMemo",
-    "5. [Medium] Add aria-label to all interactive elements"
-  ],
-  "best_practices_missing": [
-    "e.g. No TypeScript types on props",
-    "e.g. No React.memo to prevent unnecessary re-renders"
-  ],
-  "summary": "Blunt 2-3 sentence verdict on actual code quality"
-}
-"""
-
-# ──────────────────────────────────────────────────────────────
-#  STRICT MODE  –  FAANG-level brutal review
+#  EXTREME AUDITOR PROMPT (STRICT MODE)
 # ──────────────────────────────────────────────────────────────
 SYSTEM_PROMPT_STRICT = """
-You are the principal engineer at FAANG conducting a brutal, no-mercy code review.
-Your job is to find every flaw: architectural, performance, security, accessibility, and maintainability.
-You hold every submission to the highest production standards. You are NOT here to be kind.
+You are a Senior Staff Engineer and a Merciless Security Auditor conducting a brutal, FAANG-level code audit.
+Your mission is to find every anti-pattern, security vulnerability, and architectural flaw.
+You hold every submission to 2025 production standards. You are NOT here to be kind.
 
 ========================
-NON-NEGOTIABLE STRICT RULES
+GUARDRAILS (NON-NEGOTIABLE RULES)
 ========================
-1. Detect every React anti-pattern: index as key, missing dependency arrays, inline anonymous functions in JSX, direct state mutation, prop drilling beyond 2 levels, missing error boundaries
-2. Detect every performance issue: missing useMemo/useCallback, missing React.memo, re-renders on every keystroke, no debounce on search/input, no virtualization for long lists, no lazy loading for heavy components
-3. Detect every crash vector: no optional chaining, no null checks, unhandled promise rejections, missing try/catch in async functions, no boundary for runtime exceptions
-4. Accessibility must be WCAG 2.1 AA compliant: every input needs a label, every image needs meaningful alt, every button needs aria-label if icon-only, tab order must be correct
-5. Security: flag XSS via dangerouslySetInnerHTML, unvalidated user inputs rendered in DOM, hardcoded secrets, insecure eval usage
-6. False positives are UNACCEPTABLE: do not flag HTTPS usage if HTTPS is already used; do not flag missing error handling if try/catch is present
-7. Severity must be accurate: production crashes = Critical; significant UX degradation = High; developer experience issues = Medium; style/naming = Low
-8. Score MUST reflect reality: if there is no error handling, no loading state AND no TypeScript — that is at best "Average". "Excellent" requires zero Critical/High issues.
-9. Output ONLY the raw JSON object below. Absolutely no markdown, no code fences, no preamble text.
+- If any CRITICAL or HIGH severity issue exists → overall_score CANNOT be "Excellent"
+- If a security issue exists → maximum score = "Average"
+- If accessibility violations exist → maximum score = "Good"
+- If code can crash at runtime (unhandled errors) → mark as "Poor"
+- If TypeScript uses "any" excessively → reduce score by 1 level
+- If React anti-patterns exist → reduce score by 1 level
+- Never mark code as production-ready unless:
+  - Error handling (try/catch) exists for all async code
+  - Loading states exist for all data fetching
+  - Security basics (sanitization, encryption) are handled
+  - Accessibility basics (labels, alt tags) are met
+- DO NOT give generic suggestions (e.g., "use HTTPS") unless actually violated.
+- Always provide exact, improved code fixes.
+- Always assign severity: Critical / High / Medium / Low.
 
 ========================
-SCORING GUIDE (STRICT)
+MUST-DETECT ANTI-PATTERNS (EXHAUSTIVE ATTACK LIST)
 ========================
-- "Poor": app will crash in production, security holes, no accessibility
-- "Average": works in happy path but fails on edge cases, missing states
-- "Good": solid code, minor polish needed, no Critical issues
-- "Excellent": zero Critical/High issues, accessible, tested, optimised
+1. React/Next.js: index as key, missing keys, direct state mutation, side effects in render, API calls without try/catch, missing loading/error states, infinite loops, monolithic components, missing useMemo/useCallback.
+2. Security: Plain text secrets/passwords, logging passwords/tokens, dangerouslySetInnerHTML without sanitization, path traversal (dynamic file paths from input), missing XSS sanitization, insecure storage.
+3. Performance: Unnecessary re-renders, rendering large lists without virtualization, no debounce/throttle on search/input, blocking main thread, large images without lazy loading.
+4. Accessibility: Missing labels on forms/inputs, poor keyboard nav, non-accessible icons, missing alt tags, poor color contrast.
+5. Quality: Excessive 'any' types, duplicate code, hardcoded values, magic numbers, bad naming, no separation of concerns.
+6. Scalability/Reliability: Mixture of logic/UI, no modular architecture, no null/undefined checks (e.g., user.name.toLowerCase()), race conditions in API calls, blind trust in backend data.
+7. Production: No error boundaries, no fallback UI, no environment config, console logs in prod, no timeout/retry logic for APIs.
 
 ========================
-OUTPUT FORMAT — RAW JSON ONLY, NO OTHER TEXT
+SCORING ENFORCEMENT GUIDE
 ========================
+- Poor: Production-blocking crashes, severe security holes, no error handling.
+- Average: Working but fails edge cases, multiple high-severity issues, messy.
+- Good: Solid and correct, but missing polish or minor a11y/performance items.
+- Excellent: Zero Critical/High issues. Scalable, safe, accessible, and performant.
+
+========================
+OUTPUT FORMAT — RAW JSON ONLY
+========================
+Return ONLY the raw JSON object. No markdown fences. No prose intro.
+
 {
   "overall_score": "Poor | Average | Good | Excellent",
   "score_breakdown": {
-    "ui_ux": "X/10 – <one sentence>",
-    "accessibility": "X/10 – <one sentence>",
-    "seo": "X/10 – <one sentence>",
-    "security": "X/10 – <one sentence>",
-    "performance": "X/10 – <one sentence>",
-    "production_ready": "X/10 – <one sentence>",
-    "reliability": "X/10 – <one sentence>",
-    "scalability": "X/10 – <one sentence>",
-    "reusability": "X/10 – <one sentence>",
-    "maintainability": "X/10 – <one sentence>"
+    "ui_ux": "X/10 – explanation",
+    "accessibility": "X/10 – explanation",
+    "seo": "X/10 – explanation",
+    "security": "X/10 – explanation",
+    "performance": "X/10 – explanation",
+    "production_ready": "X/10 – explanation",
+    "reliability": "X/10 – explanation",
+    "scalability": "X/10 – explanation",
+    "reusability": "X/10 – explanation",
+    "maintainability": "X/10 – explanation"
   },
   "issues": [
     {
-      "category": "e.g. React Anti-Pattern | Crash Risk | Performance | Security | Accessibility",
+      "category": "e.g. React Anti-Pattern | Security Risk | Performance Leak",
       "severity": "Critical | High | Medium | Low",
-      "description": "Exact issue referencing actual code — be specific and brutal",
-      "impact": "Precise real-world consequence (crash, user data loss, SEO penalty, screen-reader failure)",
-      "code_reference": "function/component/line if identifiable",
-      "fix": "Exact corrected code demonstrating the fix"
+      "description": "Brutal description referencing code",
+      "impact": "Real-world crash/exploit risk",
+      "code_reference": "file/line/function",
+      "fix": "Corrected production-grade code"
     }
   ],
-  "improvement_plan": [
-    "1. [Critical] ...",
-    "2. [High] ...",
-    "3. [High] ...",
-    "4. [Medium] ...",
-    "5. [Low] ..."
-  ],
-  "best_practices_missing": [
-    "Specific missing best practice with reasoning"
-  ],
-  "summary": "Blunt 3-4 sentence FAANG-level verdict. Do NOT soften the language."
+  "improvement_plan": ["1. [Critical] Fix X", "2. [High] Implement Y"],
+  "best_practices_missing": ["Specific lists"],
+  "summary": "Blunt 2-3 sentence verdict."
 }
 """
 
+SYSTEM_PROMPT_NORMAL = """
+You are a Senior Staff Engineer and Code Reviewer. Perform a thorough but fair code review. 
+Identify anti-patterns, security risks, and missing best practices.
+Output exactly the JSON structure requested in the Strict prompt, but with a more balanced tone.
+"""
 
 def _extract_json(content: str) -> dict:
     """Robustly extract JSON from an LLM response that may contain prose or markdown."""
@@ -151,7 +96,22 @@ def _extract_json(content: str) -> dict:
     except Exception:
         pass
 
-    # 2. Strip markdown code fences
+    # 2. Extract content between first '{' and last '}'
+    first_brace = content.find('{')
+    last_brace = content.rfind('}')
+    if first_brace != -1 and last_brace != -1:
+        json_str = content[first_brace:last_brace+1]
+        try:
+            return json.loads(json_str)
+        except Exception:
+            # 3. Clean common minor syntax issues (trailing commas)
+            cleaned = re.sub(r',\s*([\]}])', r'\1', json_str)
+            try:
+                return json.loads(cleaned)
+            except Exception:
+                pass
+
+    # 4. Fallback search for markdown code fences
     fenced = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
     if fenced:
         try:
@@ -159,41 +119,46 @@ def _extract_json(content: str) -> dict:
         except Exception:
             pass
 
-    # 3. Grab the first complete JSON object from the response
-    brace_match = re.search(r'\{.*\}', content, re.DOTALL)
-    if brace_match:
-        try:
-            return json.loads(brace_match.group(0))
-        except Exception:
-            pass
-
-    raise ValueError("No valid JSON object found in model response")
-
+    raise ValueError("No valid JSON object found in model response. Please try again.")
 
 def analyze_code_with_ollama(code_input: str, model: str = "llama3", strict: bool = False) -> dict:
     system_prompt = SYSTEM_PROMPT_STRICT if strict else SYSTEM_PROMPT_NORMAL
-    mode_label = "STRICT FAANG-level" if strict else "thorough"
-
-    prompt = (
-        f"Perform a {mode_label} code review on the following input. "
-        f"Return ONLY the raw JSON — no prose, no markdown fences.\n\n"
-        f"{'='*60}\n"
-        f"{code_input}\n"
-        f"{'='*60}"
-    )
-
+    
     try:
         response = ollama.chat(model=model, messages=[
             {'role': 'system', 'content': system_prompt},
-            {'role': 'user',   'content': prompt}
-        ])
-
+            {'role': 'user', 'content': f"Analyze this input deeply:\n\n{code_input}"}
+        ], format='json')
+        
         content = response['message']['content']
         result = _extract_json(content)
-        return result
 
+        # ──────────────────────────────────────────────────────────────
+        # BACKEND SCORING ENFORCEMENT (GUARDRAILS)
+        # ──────────────────────────────────────────────────────────────
+        if strict:
+            issues = result.get("issues", [])
+            has_critical = any(i.get("severity", "").lower() == "critical" for i in issues)
+            has_high = [i for i in issues if i.get("severity", "").lower() == "high"]
+            has_security = any("security" in i.get("category", "").lower() for i in issues)
+            has_a11y = any("accessibility" in i.get("category", "").lower() or "a11y" in i.get("category", "").lower() for i in issues)
+
+            final_score = result.get("overall_score", "Good")
+
+            if has_critical:
+                final_score = "Poor"
+            elif len(has_high) > 2:
+                final_score = "Average"
+            elif has_security and final_score == "Excellent":
+                final_score = "Average"
+            elif has_a11y and final_score == "Excellent":
+                final_score = "Good"
+
+            result["overall_score"] = final_score
+
+        return result
     except Exception as e:
-        print(f"Error communicating with Ollama or parsing JSON: {e}")
+        print(f"Error in analyze_code_with_ollama: {e}")
         return {
             "overall_score": "Poor",
             "score_breakdown": {},
@@ -201,11 +166,11 @@ def analyze_code_with_ollama(code_input: str, model: str = "llama3", strict: boo
                 "category": "System Error",
                 "severity": "Critical",
                 "description": f"Failed to perform AI analysis: {str(e)}",
-                "impact": "Analysis could not be completed.",
+                "impact": "Code review skipped.",
                 "code_reference": "N/A",
-                "fix": "Ensure Ollama is running and the model is available (`ollama list`)."
+                "fix": "Check Ollama availability."
             }],
-            "improvement_plan": ["Ensure Ollama is running (`ollama serve`)."],
+            "improvement_plan": ["Ensure Ollama is running."],
             "best_practices_missing": [],
-            "summary": "Analysis failed due to API or JSON parsing error."
+            "summary": f"System analysis failure: {str(e)}"
         }

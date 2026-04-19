@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import axios from 'axios';
-import { UploadCloud, Link as LinkIcon, GitBranch, Zap, ShieldAlert, Shield } from 'lucide-react';
+import { UploadCloud, Link as LinkIcon, GitBranch, Zap, ShieldAlert, Shield, FileCode, X, Trash2, CheckCircle2 } from 'lucide-react';
 import ReportViewer from '@/components/ReportViewer';
 
 export default function Home() {
@@ -12,8 +12,59 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [strictMode, setStrictMode] = useState(false);
+  
+  // New state for multi-file support
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleScan = async (type: 'file' | 'repo' | 'url', payload: any) => {
+  // File Handlers
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return;
+    const newFiles = Array.from(files);
+    setSelectedFiles(prev => [...prev, ...newFiles]);
+    setError(null);
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearFiles = () => {
+    setSelectedFiles([]);
+  };
+
+  // Drag & Drop Handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (activeTab !== 'upload') setActiveTab('upload');
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+    }
+  };
+
+  const handleScan = async (type: 'file' | 'repo' | 'url', payload?: any) => {
     setIsScanning(true);
     setError(null);
     setReportData(null);
@@ -23,9 +74,14 @@ export default function Home() {
       let response;
 
       if (type === 'file') {
+        if (selectedFiles.length === 0) throw new Error("No files selected");
+        
         const formData = new FormData();
-        formData.append('file', payload);
+        selectedFiles.forEach(file => {
+          formData.append('files', file);
+        });
         formData.append('strict', String(strictMode));
+        
         response = await axios.post(endpoint, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
@@ -40,17 +96,12 @@ export default function Home() {
       console.error(err);
       setError(
         err?.response?.data?.message ||
+        err?.response?.data?.detail ||
         err.message ||
         'Failed to analyze input. Make sure the FastAPI backend is running.'
       );
     } finally {
       setIsScanning(false);
-    }
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleScan('file', e.target.files[0]);
     }
   };
 
@@ -62,7 +113,13 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-indigo-500/30 font-sans selection:text-indigo-200 pb-20">
+    <div 
+      className="min-h-screen bg-slate-950 text-slate-200 selection:bg-indigo-500/30 font-sans selection:text-indigo-200 pb-20"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
 
       {/* Header */}
       <div className="relative overflow-hidden border-b border-slate-800 bg-slate-900/50 backdrop-blur-md">
@@ -147,14 +204,97 @@ export default function Home() {
 
           <div className="p-8">
             {activeTab === 'upload' && (
-              <label className="border-2 border-dashed border-slate-700 hover:border-indigo-500/50 bg-slate-950/50 rounded-2xl p-12 flex flex-col items-center justify-center cursor-pointer group transition-all">
-                <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-indigo-500/20 transition-all">
-                  <UploadCloud className="w-8 h-8 text-slate-400 group-hover:text-indigo-400" />
+              <div className="space-y-6">
+                <div 
+                  className={`relative border-2 border-dashed rounded-2xl p-12 flex flex-col items-center justify-center transition-all duration-300 ${
+                    isDragging 
+                      ? 'border-indigo-500 bg-indigo-500/10 scale-[1.02]' 
+                      : 'border-slate-700 hover:border-indigo-500/50 bg-slate-950/50'
+                  }`}
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <label className="absolute inset-0 cursor-pointer flex flex-col items-center justify-center">
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      multiple 
+                      onChange={(e) => handleFiles(e.target.files)} 
+                    />
+                  </label>
+                  
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-all duration-300 ${
+                    isDragging ? 'bg-indigo-500/30 scale-110' : 'bg-slate-800'
+                  }`}>
+                    <UploadCloud className={`w-8 h-8 ${isDragging ? 'text-indigo-400' : 'text-slate-400'}`} />
+                  </div>
+                  <h3 className="text-xl font-semibold text-slate-200 mb-2">
+                    {isDragging ? 'Drop those files!' : 'Drag & Drop code files'}
+                  </h3>
+                  <p className="text-slate-500 text-sm">or click to browse your computer</p>
                 </div>
-                <h3 className="text-xl font-semibold text-slate-200 mb-2">Drag &amp; Drop code files</h3>
-                <p className="text-slate-500 text-sm">or click to browse your computer</p>
-                <input type="file" className="hidden" onChange={handleFileUpload} />
-              </label>
+
+                {/* File Preview List */}
+                {selectedFiles.length > 0 && (
+                  <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 animate-in fade-in slide-in-from-top-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <FileCode className="w-4 h-4" /> Selected Files ({selectedFiles.length})
+                      </h4>
+                      <button 
+                        onClick={clearFiles}
+                        className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Clear All
+                      </button>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                      {selectedFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-slate-900/80 border border-slate-800 px-4 py-3 rounded-xl group hover:border-slate-700 transition-all">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                              <FileCode className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-slate-200 line-clamp-1">{file.name}</p>
+                              <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => removeFile(idx)}
+                            className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <button 
+                      onClick={() => handleScan('file')}
+                      disabled={isScanning}
+                      className={`w-full mt-6 flex items-center justify-center gap-2 py-4 rounded-xl font-bold transition-all shadow-lg ${
+                        strictMode 
+                          ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-900/20' 
+                          : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/20'
+                      }`}
+                    >
+                      {isScanning ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          {strictMode ? '☠️ Start Strict FAANG Audit' : '🚀 Start Analysis'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             {(activeTab === 'repo' || activeTab === 'url') && (
@@ -187,7 +327,7 @@ export default function Home() {
         </div>
 
         {/* Loading State */}
-        {isScanning && (
+        {isScanning && activeTab !== 'upload' && (
           <div className="mt-4 flex flex-col items-center justify-center p-12 bg-slate-900 border border-slate-800 rounded-3xl">
             <div className={`w-12 h-12 border-4 rounded-full animate-spin mb-6 ${
               strictMode
