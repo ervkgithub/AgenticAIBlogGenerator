@@ -243,10 +243,6 @@ export default function HomePage() {
         <h1 style={{ margin: 0, letterSpacing: -0.5 }}>
           Agentic AI Blog Generator
         </h1>
-        <p style={{ margin: '10px 0 0', opacity: 0.8, lineHeight: 1.5 }}>
-          Generate a polished blog package designed to impress clients, hiring
-          managers, and decision-makers in one run.
-        </p>
       </header>
 
       <section
