@@ -50,7 +50,16 @@ SCORING ENFORCEMENT GUIDE
 ========================
 OUTPUT FORMAT — RAW JSON ONLY
 ========================
-Return ONLY the raw JSON object. No markdown fences. No prose intro.
+Return ONLY the raw JSON object. No markdown fences. No prose intro. No trailing text.
+
+CRITICAL RULE FOR THE "fix" FIELD:
+- The "fix" field MUST contain the COMPLETE, FULL, COPY-PASTE-READY corrected code.
+- Do NOT write one-liners like "use bcrypt" or "add try/catch here".
+- Do NOT truncate with "..." or "// rest of code".
+- Show the complete corrected function/component/block from start to finish.
+- Include all imports, exports, and dependencies needed for the fix to work standalone.
+- If the fix is for a React component, include the full component. If it's a function, include the full function with all error handling.
+- A developer should be able to copy your fix and paste it DIRECTLY into their codebase with zero additional work.
 
 {
   "overall_score": "Poor | Average | Good | Excellent",
@@ -70,22 +79,56 @@ Return ONLY the raw JSON object. No markdown fences. No prose intro.
     {
       "category": "e.g. React Anti-Pattern | Security Risk | Performance Leak",
       "severity": "Critical | High | Medium | Low",
-      "description": "Brutal description referencing code",
-      "impact": "Real-world crash/exploit risk",
-      "code_reference": "file/line/function",
-      "fix": "Corrected production-grade code"
+      "description": "Brutal 1-2 sentence description referencing the exact code pattern.",
+      "impact": "Concrete real-world risk: what breaks, what gets exploited, what crashes.",
+      "code_reference": "function name or line reference",
+      "fix": "// COMPLETE production-ready corrected code here — full function, full component, all imports. No truncation."
     }
   ],
-  "improvement_plan": ["1. [Critical] Fix X", "2. [High] Implement Y"],
-  "best_practices_missing": ["Specific lists"],
-  "summary": "Blunt 2-3 sentence verdict."
+  "improvement_plan": ["1. [Critical] <specific action with file/function reference>", "2. [High] <specific action>"],
+  "best_practices_missing": ["Specific named patterns missing"],
+  "summary": "Blunt 2-3 sentence verdict covering the biggest risks."
 }
 """
 
 SYSTEM_PROMPT_NORMAL = """
-You are a Senior Staff Engineer and Code Reviewer. Perform a thorough but fair code review. 
-Identify anti-patterns, security risks, and missing best practices.
-Output exactly the JSON structure requested in the Strict prompt, but with a more balanced tone.
+You are a Senior Staff Engineer and Code Reviewer. Perform a thorough but fair code review.
+Identify anti-patterns, security risks, and missing best practices with clear explanations.
+
+CRITICAL RULE FOR THE "fix" FIELD:
+- The "fix" field MUST contain COMPLETE, FULL, COPY-PASTE-READY corrected code.
+- Do NOT write one-liner summaries. Do NOT truncate with "...".
+- Show the complete corrected function/component from start to finish with all imports.
+
+Return ONLY the raw JSON object in this exact structure (no markdown, no prose):
+{
+  "overall_score": "Poor | Average | Good | Excellent",
+  "score_breakdown": {
+    "ui_ux": "X/10 – explanation",
+    "accessibility": "X/10 – explanation",
+    "seo": "X/10 – explanation",
+    "security": "X/10 – explanation",
+    "performance": "X/10 – explanation",
+    "production_ready": "X/10 – explanation",
+    "reliability": "X/10 – explanation",
+    "scalability": "X/10 – explanation",
+    "reusability": "X/10 – explanation",
+    "maintainability": "X/10 – explanation"
+  },
+  "issues": [
+    {
+      "category": "category name",
+      "severity": "Critical | High | Medium | Low",
+      "description": "Clear description of the issue.",
+      "impact": "What breaks or fails in production.",
+      "code_reference": "function/line reference",
+      "fix": "// Complete corrected code — full function with all imports, no truncation."
+    }
+  ],
+  "improvement_plan": ["1. [Priority] Specific action"],
+  "best_practices_missing": ["Specific named patterns"],
+  "summary": "2-3 sentence overall verdict."
+}
 """
 
 def _extract_json(content: str) -> dict:

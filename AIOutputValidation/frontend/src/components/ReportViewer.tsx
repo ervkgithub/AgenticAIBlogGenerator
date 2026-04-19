@@ -27,18 +27,12 @@ interface ReportViewerProps {
   strictMode?: boolean;
 }
 
-// ──────────────────────────────────────────────
-// Safe renderer – converts ANY value into a safe
-// renderable string so React never crashes on
-// LLM hallucinations (e.g. nested objects).
-// ──────────────────────────────────────────────
 function safeString(val: unknown): string {
   if (val === null || val === undefined) return '';
   if (typeof val === 'string') return val;
   if (typeof val === 'number' || typeof val === 'boolean') return String(val);
   if (Array.isArray(val)) return val.map(safeString).join(' | ');
   if (typeof val === 'object') {
-    // LLM sometimes returns { step1: "...", step2: "..." } — flatten values
     return Object.values(val as Record<string, unknown>).map(safeString).join(' → ');
   }
   return String(val);
@@ -71,10 +65,6 @@ const getSeverityIcon = (severity: string) => {
   return <Info className="w-5 h-5 text-blue-500" />;
 };
 
-// ─────────────────────────────────────────────────────────
-// Normalise issues array — LLM sometimes wraps them in an
-// outer object: { "issues": [...] } instead of a plain array
-// ─────────────────────────────────────────────────────────
 function normaliseIssues(raw: unknown): Issue[] {
   if (Array.isArray(raw)) return raw as Issue[];
   if (raw && typeof raw === 'object') {
@@ -147,71 +137,103 @@ export default function ReportViewer({ data, error, strictMode = false }: Report
         {/* ── Right Column ── */}
         <div className="lg:col-span-2 space-y-8">
 
-          {/* Issues */}
+          {/* Issues – each card now contains its own inline Action Step */}
           {issues.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-xl font-bold">
                 Identified Issues
                 <span className="ml-2 text-sm font-normal text-slate-500">({issues.length})</span>
               </h3>
-              <div className="grid gap-4">
-                {issues.map((issue, idx) => (
-                  <div key={idx} className="bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors rounded-2xl p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="mt-0.5 flex-shrink-0">{getSeverityIcon(safeString(issue.severity))}</div>
-                      <div className="space-y-2 w-full min-w-0">
 
-                        {/* Top row: category + severity badge + code ref */}
-                        <div className="flex items-center flex-wrap gap-2">
-                          <span className="px-2.5 py-0.5 bg-slate-800 text-slate-300 text-xs font-bold rounded uppercase tracking-wider">
-                            {safeString(issue.category)}
-                          </span>
-                          <span className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase border ${getSeverityStyles(safeString(issue.severity))}`}>
-                            {safeString(issue.severity)}
-                          </span>
-                          {issue.code_reference && safeString(issue.code_reference) !== 'N/A' && (
-                            <span className="text-xs text-slate-500 font-mono bg-slate-950 px-2 py-0.5 rounded ml-auto">
-                              {safeString(issue.code_reference)}
-                            </span>
-                          )}
-                        </div>
+              <div className="grid gap-5">
+                {issues.map((issue, idx) => {
+                  // Action step is the plan item at the same position (AI orders plan by priority)
+                  const planStep = planItems[idx] ? safeString(planItems[idx]) : null;
 
-                        <h4 className="text-base font-semibold text-slate-100">{safeString(issue.description)}</h4>
-                        <p className="text-slate-400 text-sm leading-relaxed">
-                          <span className="text-slate-300 font-medium">Impact: </span>
-                          {safeString(issue.impact)}
-                        </p>
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors rounded-2xl overflow-hidden"
+                    >
+                      {/* ── Issue body ── */}
+                      <div className="p-6">
+                        <div className="flex items-start gap-4">
+                          <div className="mt-0.5 flex-shrink-0">{getSeverityIcon(safeString(issue.severity))}</div>
+                          <div className="space-y-2 w-full min-w-0">
 
-                        {issue.fix && (
-                          <div className="mt-3 pt-3 border-t border-slate-800">
-                            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block mb-2">Recommended Fix</span>
-                            <pre className="bg-slate-950 p-4 rounded-xl text-sm border border-slate-800/80 overflow-x-auto text-emerald-300/90 whitespace-pre-wrap break-words">
-                              <code>{safeString(issue.fix)}</code>
-                            </pre>
+                            {/* Badges */}
+                            <div className="flex items-center flex-wrap gap-2">
+                              <span className="px-2.5 py-0.5 bg-slate-800 text-slate-300 text-xs font-bold rounded uppercase tracking-wider">
+                                {safeString(issue.category)}
+                              </span>
+                              <span className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase border ${getSeverityStyles(safeString(issue.severity))}`}>
+                                {safeString(issue.severity)}
+                              </span>
+                              {issue.code_reference && safeString(issue.code_reference) !== 'N/A' && (
+                                <span className="text-xs text-slate-500 font-mono bg-slate-950 px-2 py-0.5 rounded ml-auto">
+                                  {safeString(issue.code_reference)}
+                                </span>
+                              )}
+                            </div>
+
+                            <h4 className="text-base font-semibold text-slate-100">{safeString(issue.description)}</h4>
+                            <p className="text-slate-400 text-sm leading-relaxed">
+                              <span className="text-slate-300 font-medium">Impact: </span>
+                              {safeString(issue.impact)}
+                            </p>
+
+                            {/* Recommended Fix */}
+                            {issue.fix && (
+                              <div className="mt-3 pt-3 border-t border-slate-800">
+                                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block mb-2">
+                                  Recommended Fix
+                                </span>
+                                <pre className="bg-slate-950 p-4 rounded-xl text-sm border border-slate-800/80 overflow-x-auto text-emerald-300/90 whitespace-pre-wrap break-words">
+                                  <code>{safeString(issue.fix)}</code>
+                                </pre>
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {/* Improvement Plan */}
-          {planItems.length > 0 && (
-            <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-3xl p-8">
-              <h3 className="text-xl font-bold text-indigo-400 mb-6">Improvement Plan</h3>
-              <ul className="space-y-4">
-                {planItems.map((step, idx) => (
-                  <li key={idx} className="flex items-start gap-4">
-                    <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold mt-0.5">
-                      {idx + 1}
-                    </span>
-                    <p className="text-slate-300 leading-relaxed">{safeString(step)}</p>
-                  </li>
-                ))}
-              </ul>
+                      {/* ── Inline Action Step (from Improvement Plan) ── */}
+                      {planStep && (
+                        <div className="px-6 py-4 bg-indigo-500/5 border-t border-indigo-500/20 flex items-start gap-3">
+                          <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold mt-0.5">
+                            {idx + 1}
+                          </span>
+                          <div>
+                            <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+                              💡 Action Step
+                            </span>
+                            <p className="text-slate-300 text-sm leading-relaxed">{planStep}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Extra plan steps beyond the issues count */}
+              {planItems.length > issues.length && (
+                <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-6 mt-2">
+                  <h4 className="text-sm font-bold text-indigo-400 uppercase tracking-wider mb-4">
+                    Additional Action Steps
+                  </h4>
+                  <ul className="space-y-3">
+                    {planItems.slice(issues.length).map((step, idx) => (
+                      <li key={idx} className="flex items-start gap-3">
+                        <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold mt-0.5">
+                          {issues.length + idx + 1}
+                        </span>
+                        <p className="text-slate-300 text-sm leading-relaxed">{safeString(step)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
